@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Redirecionando…</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html,body{height:100%}
+    body{display:flex;align-items:center;justify-content:center;margin:0;font-family:Arial,Helvetica,sans-serif;background:#f7f7f7}
+    .box{max-width:560px;padding:28px;text-align:center;background:#fff;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+    h1{margin:0 0 8px;font-size:22px}
+    p{color:#444;margin:8px 0 14px}
+    a.btn{display:inline-block;font-weight:700;text-decoration:none;padding:14px 20px;border-radius:10px;background:#25d366;color:#fff}
+    small{display:block;margin-top:10px;color:#777}
+  </style>
+  <script>
+    // 1) Números (formato internacional SEM "+")
+    const phones = [
+      "351967062684",
+      "351967062657",
+      // "351960131439",
+    ];
+
+    // 2) Texto base (não-encodado) -> será encodado dinamicamente
+    const rawMsg = "Olá Pedrito vim através do teu anúncio e gostava de entrar no teu grupo gratuito";
+
+    // 3) Round-robin por sessão (fallback para random)
+    function pickPhone() {
+      if (!phones.length) return null;
+      try {
+        const k = "wa_rr_index";
+        const i = Number(sessionStorage.getItem(k) || "0");
+        const next = phones[i % phones.length];
+        sessionStorage.setItem(k, String(i + 1));
+        return next;
+      } catch {
+        return phones[Math.floor(Math.random() * phones.length)];
+      }
+    }
+
+    // 4) Monta links (app + web)
+    function buildLinks() {
+      const phone = pickPhone();
+      const msg = encodeURIComponent(rawMsg);
+      return {
+        phone,
+        app: phone ? `whatsapp://send?phone=${phone}&text=${msg}` : null,
+        web: phone ? `https://wa.me/${phone}?text=${msg}` : null,
+      };
+    }
+
+    // 5) Detecta iOS (ajuda a escolher a melhor técnica de abertura)
+    const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    // 6) Redireciona com fallback confiável
+    function redirect() {
+      const manual = document.getElementById("manual");
+      const { phone, app, web } = buildLinks();
+
+      if (!phone) {
+        manual.textContent = "WhatsApp indisponível";
+        manual.setAttribute("aria-disabled", "true");
+        return;
+      }
+
+      // Botão manual sempre pronto
+      manual.href = web;
+
+      // Estratégia:
+      // - iOS: abrir via location (melhor suporte)
+      // - outros: tentar app via iframe; fallback para web após timeout
+      let opened = false;
+      const fallbackTimer = setTimeout(() => {
+        if (!opened) location.href = web;
+      }, 800);
+
+      const markOpened = () => {
+        opened = true;
+        clearTimeout(fallbackTimer);
+      };
+
+      window.addEventListener("pagehide", markOpened, { once: true });
+      window.addEventListener("blur", markOpened, { once: true });
+
+      if (isiOS) {
+        // iOS lida melhor com location direto no scheme
+        try {
+          location.href = app;
+        } catch {
+          location.href = web;
+        }
+      } else {
+        // Tentativa via iframe (Android/desktop)
+        try {
+          const iframe = document.createElement("iframe");
+          iframe.style.display = "none";
+          iframe.src = app;
+          document.body.appendChild(iframe);
+        } catch {
+          location.href = web;
+        }
+      }
+    }
+
+    window.addEventListener("load", redirect);
+  </script>
+</head>
+<body>
+  <div class="box" role="status" aria-live="polite">
+    <h1>Um momento…</h1>
+    <p>Estamos a encaminhar-te para um representante no WhatsApp.</p>
+    <a id="manual" class="btn" href="#" rel="noopener">Abrir no WhatsApp</a>
+    <small>Se não redirecionar automaticamente, clica no botão.</small>
+    <noscript>
+      <p><a class="btn" href="https://wa.me/351967062684?text=Ol%C3%A1%20Champomy%20quero%20participar%20do%20iPhone%2017%20Pro%20MAX">Abrir no WhatsApp</a></p>
+    </noscript>
+  </div>
+</body>
+</html>
