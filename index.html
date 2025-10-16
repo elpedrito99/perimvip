@@ -16,17 +16,13 @@
     small{display:block;margin-top:10px;color:#777}
   </style>
   <script>
-    // 1) Números (formato internacional SEM "+")
-    const phones = [
-      "35196588927",
-      // "351967062657",
-      // "351960131439",
-    ];
+    // 1) Números (sem "+")
+    const phones = ["351967062644"];
 
-    // 2) Texto base (não-encodado) -> será encodado dinamicamente
-    const rawMsg = "Olá, Perim! Quero fazer parte da tua comunidade exclusiva";
+    // 2) Mensagem (será URL-encodada)
+    const rawMsg = "Olá, Perim! Quero fazer parte da tua comunidade exclusiva.";
 
-    // 3) Round-robin por sessão (fallback para random)
+    // 3) Round-robin por sessão (fallback random)
     function pickPhone() {
       if (!phones.length) return null;
       try {
@@ -40,68 +36,32 @@
       }
     }
 
-    // 4) Monta links (app + web)
-    function buildLinks() {
+    // 4) Monta link universal (web)
+    function buildWebLink() {
       const phone = pickPhone();
       const msg = encodeURIComponent(rawMsg);
-      return {
-        phone,
-        app: phone ? `whatsapp://send?phone=${phone}&text=${msg}` : null,
-        web: phone ? `https://wa.me/${phone}?text=${msg}` : null,
-      };
+      return phone ? `https://wa.me/${phone}?text=${msg}` : null;
     }
 
-    // 5) Detecta iOS (ajuda a escolher a melhor técnica de abertura)
-    const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    // 6) Redireciona com fallback confiável
+    // 5) Redireciona com fallback
     function redirect() {
       const manual = document.getElementById("manual");
-      const { phone, app, web } = buildLinks();
+      const web = buildWebLink();
 
-      if (!phone) {
+      if (!web) {
         manual.textContent = "WhatsApp indisponível";
         manual.setAttribute("aria-disabled", "true");
         return;
       }
 
-      // Botão manual sempre pronto
+      // Botão manual pronto
       manual.href = web;
+      manual.rel = "noopener noreferrer";
 
-      // Estratégia:
-      // - iOS: abrir via location (melhor suporte)
-      // - outros: tentar app via iframe; fallback para web após timeout
-      let opened = false;
-      const fallbackTimer = setTimeout(() => {
-        if (!opened) location.href = web;
-      }, 800);
-
-      const markOpened = () => {
-        opened = true;
-        clearTimeout(fallbackTimer);
-      };
-
-      window.addEventListener("pagehide", markOpened, { once: true });
-      window.addEventListener("blur", markOpened, { once: true });
-
-      if (isiOS) {
-        // iOS lida melhor com location direto no scheme
-        try {
-          location.href = app;
-        } catch {
-          location.href = web;
-        }
-      } else {
-        // Tentativa via iframe (Android/desktop)
-        try {
-          const iframe = document.createElement("iframe");
-          iframe.style.display = "none";
-          iframe.src = app;
-          document.body.appendChild(iframe);
-        } catch {
-          location.href = web;
-        }
-      }
+      // Auto-redirect simples (menos bloqueios)
+      const t = setTimeout(() => { location.href = web; }, 200);
+      // Se o user clicar antes, cancela
+      manual.addEventListener("click", () => clearTimeout(t), { once: true });
     }
 
     window.addEventListener("load", redirect);
